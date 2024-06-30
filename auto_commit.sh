@@ -29,8 +29,11 @@ The JSON object should only contain two fields: 'commit_message' and 'files'.
 Each file should have a 'file' and 'changes' field.
 The 'file' field should be only the name of the file that was changed without any path.
 The 'changes' field should be a descriptive string summarizing the changes made on that exact same file and why we changed that.
-Output only the JSON object, nothing else. The 'commit_message' field should not be empty and should provide a summary of the changes.
-Do not include any explanations, examples, or any other text. Only output the JSON object."
+The 'commit_message' field should not be empty and should provide a summary of the changes, adhering to the following best practices:
+1. Use the imperative mood in the commit message (e.g., 'Fix bug', not 'Fixed bug' or 'Fixes bug').
+2. Capitalize the first word of the commit message.
+Output only the JSON object, nothing else."
+
 PROMPT_BODY="Here are the changes:\n$DIFF_OUTPUT"
 
 generate_commit_message_groq() {
