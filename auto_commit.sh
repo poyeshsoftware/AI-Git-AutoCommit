@@ -27,6 +27,7 @@ fi
 PROMPT_INTRO="Generate a commit message in JSON format for the following changes.
 The JSON object should only contain two fields: 'commit_message' and 'files'.
 Each file should have a 'file' and 'changes' field.
+The 'file' field should be only the name of the file that was changed without any path.
 The 'changes' field should be a descriptive string summarizing the changes made on that exact same file and why we changed that.
 Output only the JSON object, nothing else. The 'commit_message' field should not be empty and should provide a summary of the changes.
 Do not include any explanations, examples, or any other text. Only output the JSON object."
@@ -118,7 +119,7 @@ if [ -z "$COMMIT_MESSAGE" ] || [ -z "$FILE_CHANGES_JSON" ]; then
   exit 1
 fi
 
-FILE_CHANGES=$(echo "$FILE_CHANGES_JSON" | jq -r '.[] | "\(.file): \(.changes)"')
+FILE_CHANGES=$(echo "$FILE_CHANGES_JSON" | jq -r '.[] | "\(.file): \(.changes)\n"')
 
 COMMIT_MESSAGE="$COMMIT_MESSAGE"$'\n\n'"$FILE_CHANGES"
 
@@ -130,8 +131,8 @@ read -p "Do you want to use this commit message? (yes/no) " CONFIRM
 if [ "$CONFIRM" = "yes" ] || [ "$CONFIRM" = "y" ]; then
   git commit -m "$COMMIT_MESSAGE"
   echo "Changes have been committed."
-  git push
-  echo "Changes have been pushed."
+#  git push
+#  echo "Changes have been pushed."
 else
   echo "Commit aborted."
 fi
