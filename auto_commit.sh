@@ -134,8 +134,8 @@ read -p "Do you want to use this commit message? (yes/no) " CONFIRM
 if [ "$CONFIRM" = "yes" ] || [ "$CONFIRM" = "y" ]; then
   git commit -m "$COMMIT_MESSAGE"
   echo "Changes have been committed."
-  git push
-  echo "Changes have been pushed."
+#  git push
+#  echo "Changes have been pushed."
 else
   echo "Commit aborted."
 fi
