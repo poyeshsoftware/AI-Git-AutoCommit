@@ -9,10 +9,11 @@ fi
 git add .
 
 # Set the default AI service
-AI_SERVICE="gemini" # options: groq, local, gemini
+AI_SERVICE="azure" # options: groq, local, gemini, azure
 GROQ_AI_MODEL_NAME="llama3-70b-8192" # options: llama3-8b-8192, llama3-70b-8192
 GEMINI_AI_MODEL_NAME="gemini-1.5-pro" # options: gemini-1.5-flash, gemini-1.5-pro, gemini-1.0-pro
 LOCAL_AI_MODEL_NAME="codestral:latest" # options: codestral:latest, phi3:latest, llama3:latest
+AZURE_AI_MODEL_NAME="gpt-4o" # as per your deployment
 
 # Capture the git diff output
 DIFF_OUTPUT=$(git diff --cached)
@@ -152,6 +153,56 @@ generate_commit_message_gemini() {
   fi
 }
 
+generate_commit_message_azure() {
+  API_KEY="$AZURE_API_KEY"
+  ENDPOINT="$AZURE_ENDPOINT"
+  DEPLOYMENT_NAME="$AZURE_DEPLOYMENT_NAME"
+  API_VERSION="$AZURE_API_VERSION"
+  PROMPT="$PROMPT_INTRO\n\n$PROMPT_BODY"
+
+  PAYLOAD=$(jq -n --arg prompt "$PROMPT" '{
+    "messages": [{"role": "user", "content": $prompt}],
+    "temperature": 0.7
+  }')
+
+  RESPONSE=$(curl -s -X POST "${ENDPOINT}openai/deployments/${DEPLOYMENT_NAME}/chat/completions?api-version=${API_VERSION}" \
+    -H "Content-Type: application/json" \
+    -H "api-key: $API_KEY" \
+    -d "$PAYLOAD")
+
+  if [ $? -ne 0 ]; then
+    echo "Error calling Azure OpenAI API. Check if it's running and accessible."
+    exit 1
+  fi
+
+  ERROR_MESSAGE=$(echo "$RESPONSE" | jq -r '.error.message // empty')
+  if [ -n "$ERROR_MESSAGE" ]; then
+    echo "Error from Azure OpenAI API: $ERROR_MESSAGE"
+    exit 1
+  fi
+
+  # Extract the content field
+  CONTENT=$(echo "$RESPONSE" | jq -r '.choices[0].message.content')
+
+  # Remove triple backticks and any code fencing
+  if echo "$CONTENT" | grep -q '^```'; then
+      # Remove the backticks and anything before/after the JSON block
+      JSON_CONTENT=$(echo "$CONTENT" | sed -e 's/^```[a-z]*//' -e 's/```$//' -e '/^```$/d' -e '/^```json/d')
+  else
+      JSON_CONTENT="$CONTENT"
+  fi
+
+  # Validate and parse the JSON content
+  if echo "$JSON_CONTENT" | jq empty >/dev/null 2>&1; then
+      COMMIT_MESSAGE=$(echo "$JSON_CONTENT" | jq -r '.commit_message')
+      FILE_CHANGES_JSON=$(echo "$JSON_CONTENT" | jq -r '.files')
+  else
+      echo "Error: Could not extract valid JSON from the response content."
+      echo "Raw response: $CONTENT"
+      exit 1
+  fi
+}
+
 case "$AI_SERVICE" in
   groq)
     generate_commit_message_groq
@@ -161,6 +212,9 @@ case "$AI_SERVICE" in
     ;;
   gemini)
     generate_commit_message_gemini
+    ;;
+  azure)
+    generate_commit_message_azure
     ;;
   *)
     echo "Invalid AI service specified."
