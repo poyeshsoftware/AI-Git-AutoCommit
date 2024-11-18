@@ -34,7 +34,7 @@ The 'commit_message' field should not be empty and should provide a summary of t
 2. Capitalize the first word of the commit message.
 Output only the JSON object, nothing else."
 
-PROMPT_BODY="Here are the changes:\n$DIFF_OUTPUT"
+PROMPT_BODY="Here are the changes:\n$DIFF_OUTPUT\n\n Here are the generated commit with format as described in JSON:"
 
 generate_commit_message_groq() {
   API_KEY="$GROQ_API_KEY"
@@ -51,8 +51,26 @@ generate_commit_message_groq() {
     exit 1
   fi
 
-  COMMIT_MESSAGE=$(echo "$RESPONSE" | jq -r '.choices[0].message.content | fromjson | .commit_message')
-  FILE_CHANGES_JSON=$(echo "$RESPONSE" | jq -r '.choices[0].message.content | fromjson | .files')
+  # Extract the content field
+  CONTENT=$(echo "$RESPONSE" | jq -r '.choices[0].message.content')
+
+  # Check if the content starts with triple backticks
+  if echo "$CONTENT" | grep -q '^```'; then
+    # Remove the backticks and anything before/after the JSON block
+    JSON_CONTENT=$(echo "$CONTENT" | sed -e 's/^```[a-z]*//' -e 's/```$//' -e '/^```$/d' -e '/^```json/d')
+  else
+    JSON_CONTENT="$CONTENT"
+  fi
+
+  # Validate and parse the JSON content
+  if echo "$JSON_CONTENT" | jq empty >/dev/null 2>&1; then
+    COMMIT_MESSAGE=$(echo "$JSON_CONTENT" | jq -r '.commit_message')
+    FILE_CHANGES_JSON=$(echo "$JSON_CONTENT" | jq -r '.files')
+  else
+    echo "Error: Could not extract valid JSON from the response content."
+    echo "Raw response: $CONTENT"
+    exit 1
+  fi
 }
 
 generate_commit_message_local() {
@@ -70,8 +88,26 @@ generate_commit_message_local() {
     exit 1
   fi
 
-  COMMIT_MESSAGE=$(echo "$RESPONSE" | jq -r '.response' | sed 's/`json//g' | sed 's/`//g' | jq -r '.commit_message')
-  FILE_CHANGES_JSON=$(echo "$RESPONSE" | jq -r '.response' | sed 's/`json//g' | sed 's/`//g' | jq '.files')
+  # Extract the content field
+  CONTENT=$(echo "$RESPONSE" | jq -r '.response' | sed 's/`json//g' | sed 's/`//g')
+
+  # Check if the content starts with triple backticks
+  if echo "$CONTENT" | grep -q '^```'; then
+    # Remove the backticks and anything before the JSON
+    JSON_CONTENT=$(echo "$CONTENT" | sed -e '1s/^```[a-z]*//' -e '/^```$/d')
+  else
+    JSON_CONTENT="$CONTENT"
+  fi
+
+  # Validate and parse the JSON content
+  if echo "$JSON_CONTENT" | jq empty >/dev/null 2>&1; then
+    COMMIT_MESSAGE=$(echo "$JSON_CONTENT" | jq -r '.commit_message')
+    FILE_CHANGES_JSON=$(echo "$JSON_CONTENT" | jq -r '.files')
+  else
+    echo "Error: Could not extract valid JSON from the response content."
+    echo "Raw response: $CONTENT"
+    exit 1
+  fi
 }
 
 generate_commit_message_gemini() {
@@ -94,10 +130,26 @@ generate_commit_message_gemini() {
     exit 1
   fi
 
-  RESPONSE_TEXT=$(echo "$RESPONSE" | jq -r '.candidates[0].content.parts[0].text')
-  RESPONSE_TEXT=$(echo "$RESPONSE_TEXT" | sed 's/^```json//' | sed 's/```$//')
-  COMMIT_MESSAGE=$(echo "$RESPONSE_TEXT" | jq -r '.commit_message')
-  FILE_CHANGES_JSON=$(echo "$RESPONSE_TEXT" | jq -r '.files')
+  # Extract the content field
+  CONTENT=$(echo "$RESPONSE" | jq -r '.candidates[0].content.parts[0].text' | sed 's/^```json//' | sed 's/```$//')
+
+  # Check if the content starts with triple backticks
+  if echo "$CONTENT" | grep -q '^```'; then
+    # Remove the backticks and anything before the JSON
+    JSON_CONTENT=$(echo "$CONTENT" | sed -e '1s/^```[a-z]*//' -e '/^```$/d')
+  else
+    JSON_CONTENT="$CONTENT"
+  fi
+
+  # Validate and parse the JSON content
+  if echo "$JSON_CONTENT" | jq empty >/dev/null 2>&1; then
+    COMMIT_MESSAGE=$(echo "$JSON_CONTENT" | jq -r '.commit_message')
+    FILE_CHANGES_JSON=$(echo "$JSON_CONTENT" | jq -r '.files')
+  else
+    echo "Error: Could not extract valid JSON from the response content."
+    echo "Raw response: $CONTENT"
+    exit 1
+  fi
 }
 
 case "$AI_SERVICE" in
